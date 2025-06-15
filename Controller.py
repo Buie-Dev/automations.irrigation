@@ -1,6 +1,7 @@
 from time import sleep
 from datetime import datetime
 import requests
+import pytz
 from config import config
 from shared import SCHEDULES, COMPLETED_SCHEDULES
 from mqtt import publish_request
@@ -10,11 +11,15 @@ from Schedule import Schedule
 def fetch_schedules():
     """Fetch schedules from the API"""
     try:
-        response = requests.get(f"{config.API_URL}/api/schedules")
+
+        response = requests.get(f"{config.API_URL}/irrigations/schedules/automation")
         response.raise_for_status()  # Raise an exception for bad status codes
         schedules_data = response.json()
 
         # Clear existing schedules
+        # Store existing schedule IDs in completed schedules
+        completed_ids = {schedule.id for schedule in COMPLETED_SCHEDULES}
+
         SCHEDULES.clear()
         COMPLETED_SCHEDULES.clear()
 
@@ -22,7 +27,6 @@ def fetch_schedules():
         for schedule_data in schedules_data:
             schedule = Schedule(
                 id=schedule_data["id"],
-                name=schedule_data["name"],
                 monday=schedule_data["monday"],
                 tuesday=schedule_data["tuesday"],
                 wednesday=schedule_data["wednesday"],
@@ -31,17 +35,21 @@ def fetch_schedules():
                 saturday=schedule_data["saturday"],
                 sunday=schedule_data["sunday"],
                 start_time=schedule_data["start_time"],
-                duration=schedule_data["duration"],
+                command=schedule_data["command"],
             )
-            SCHEDULES.append(schedule)
+            # Put schedule in completed list if ID was there before, otherwise in main list
+            if schedule.id in completed_ids:
+                COMPLETED_SCHEDULES.append(schedule)
+            else:
+                SCHEDULES.append(schedule)
 
-        print(f"Successfully loaded {len(SCHEDULES)} schedules")
     except requests.RequestException as e:
         print(f"Error fetching schedules: {e}")
 
 
 def is_correct_day_and_time(schedule) -> bool:
-    current_time = datetime.now()
+    pacific_tz = pytz.timezone("America/Vancouver")
+    current_time = datetime.now(pacific_tz)
     current_day = current_time.strftime("%A").lower()
 
     # Check if the schedule is enabled for the current day
@@ -71,10 +79,10 @@ def run(mqtt_client) -> None:
     while True:
         for schedule in SCHEDULES[:]:  # iterate over a shallow copy
             if is_correct_day_and_time(schedule):
-                publish_request(mqtt_client, schedule)
-                COMPLETED_SCHEDULES.append(schedule)
                 SCHEDULES.remove(schedule)
+                COMPLETED_SCHEDULES.append(schedule)
                 publish_request(mqtt_client, schedule)
+
                 sleep(0.1)
 
         for schedule in COMPLETED_SCHEDULES[:]:  # also iterate over a copy here

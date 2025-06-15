@@ -13,7 +13,7 @@ class Config:
     MQTT_PORT = int(os.getenv("MQTT_PORT"))
     DEVICE_NAME = os.getenv("DEVICE_NAME")
     API_URL = os.getenv(
-        "API_URL", "http://localhost:3000"
+        "API_URL", "http://localhost:5001"
     )  # Default to localhost if not set
 
 

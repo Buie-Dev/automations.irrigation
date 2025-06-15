@@ -2,7 +2,6 @@ class Schedule:
     def __init__(
         self,
         id,
-        name,
         monday,
         tuesday,
         wednesday,
@@ -11,10 +10,9 @@ class Schedule:
         saturday,
         sunday,
         start_time,
-        duration,
+        command,
     ):
         self.id = id
-        self.name = name
         self.monday = monday
         self.tuesday = tuesday
         self.wednesday = wednesday
@@ -23,4 +21,4 @@ class Schedule:
         self.saturday = saturday
         self.sunday = sunday
         self.start_time = start_time
-        self.duration = duration
+        self.command = command
