@@ -1,5 +1,6 @@
 from time import sleep
 from datetime import datetime
+import logging
 import requests
 import pytz
 from config import config
@@ -7,44 +8,48 @@ from shared import SCHEDULES, COMPLETED_SCHEDULES
 from mqtt import publish_request
 from Schedule import Schedule
 
+logger = logging.getLogger(__name__)
+
+FETCH_RETRY_DELAY = 5  # seconds between retries
+
 
 def fetch_schedules():
-    """Fetch schedules from the API"""
-    try:
+    """Fetch schedules from the API, retrying indefinitely until successful"""
+    while True:
+        try:
+            response = requests.get(f"{config.API_URL}/irrigations/schedules/automation", timeout=10)
+            response.raise_for_status()
+            schedules_data = response.json()
 
-        response = requests.get(f"{config.API_URL}/irrigations/schedules/automation")
-        response.raise_for_status()  # Raise an exception for bad status codes
-        schedules_data = response.json()
+            completed_ids = {schedule.id for schedule in COMPLETED_SCHEDULES}
 
-        # Clear existing schedules
-        # Store existing schedule IDs in completed schedules
-        completed_ids = {schedule.id for schedule in COMPLETED_SCHEDULES}
+            SCHEDULES.clear()
+            COMPLETED_SCHEDULES.clear()
 
-        SCHEDULES.clear()
-        COMPLETED_SCHEDULES.clear()
+            for schedule_data in schedules_data:
+                schedule = Schedule(
+                    id=schedule_data["id"],
+                    monday=schedule_data["monday"],
+                    tuesday=schedule_data["tuesday"],
+                    wednesday=schedule_data["wednesday"],
+                    thursday=schedule_data["thursday"],
+                    friday=schedule_data["friday"],
+                    saturday=schedule_data["saturday"],
+                    sunday=schedule_data["sunday"],
+                    start_time=schedule_data["start_time"],
+                    command=schedule_data["command"],
+                )
+                if schedule.id in completed_ids:
+                    COMPLETED_SCHEDULES.append(schedule)
+                else:
+                    SCHEDULES.append(schedule)
 
-        # Add each schedule from the response
-        for schedule_data in schedules_data:
-            schedule = Schedule(
-                id=schedule_data["id"],
-                monday=schedule_data["monday"],
-                tuesday=schedule_data["tuesday"],
-                wednesday=schedule_data["wednesday"],
-                thursday=schedule_data["thursday"],
-                friday=schedule_data["friday"],
-                saturday=schedule_data["saturday"],
-                sunday=schedule_data["sunday"],
-                start_time=schedule_data["start_time"],
-                command=schedule_data["command"],
-            )
-            # Put schedule in completed list if ID was there before, otherwise in main list
-            if schedule.id in completed_ids:
-                COMPLETED_SCHEDULES.append(schedule)
-            else:
-                SCHEDULES.append(schedule)
+            logger.info("Fetched %d schedules", len(schedules_data))
+            return
 
-    except requests.RequestException as e:
-        print(f"Error fetching schedules: {e}")
+        except requests.RequestException as e:
+            logger.error("Error fetching schedules: %s — retrying in %ds", e, FETCH_RETRY_DELAY)
+            sleep(FETCH_RETRY_DELAY)
 
 
 def is_correct_day_and_time(schedule) -> bool:

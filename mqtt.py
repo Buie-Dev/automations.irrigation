@@ -1,10 +1,13 @@
 import json
+import logging
 import uuid
 import paho.mqtt.client as mqtt
 
 from config import config
 from shared import SCHEDULES, COMPLETED_SCHEDULES, add_replace_schedule, remove_schedule
 from Schedule import Schedule
+
+logger = logging.getLogger(__name__)
 
 TOPIC_PUB_IRRIGATION_REQUEST = "irrigation/request"
 TOPIC_SUB_HEALTH_CHECK_REQUEST = "healthcheck/request"
@@ -19,24 +22,17 @@ sub_topics = [
     TOPIC_SUB_SCHEDULE_DELETE,
 ]
 
-print(
-    "CONFIG.MQTT",
-    config.MQTT_BROKER,
-    config.MQTT_PASSWORD,
-    config.MQTT_PORT,
-    config.MQTT_USERNAME,
-)
+logger.info("CONFIG.MQTT %s %s %s %s", config.MQTT_BROKER, config.MQTT_PASSWORD, config.MQTT_PORT, config.MQTT_USERNAME)
 
 
 # Callback when the client connects to the broker
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
-        print("Connected successfully to broker!")
+        logger.info("Connected successfully to broker!")
         for topic in sub_topics:
-            client.subscribe(topic)  # Subscribe to a topic after connecting
-        # Request initial schedules
+            client.subscribe(topic)
     else:
-        print(f"Connection failed with code {rc}")
+        logger.error("Connection failed with code %s", rc)
 
 
 def health_check_response(client):
@@ -48,9 +44,9 @@ def publish_message(client, topic, payload, retain=False):
     try:
         message = json.dumps(payload)
         client.publish(topic, message, retain=retain)
-        print(f"Published to {topic}: Retain: {retain}: {message}")
+        logger.info("Published to %s: Retain: %s: %s", topic, retain, message)
     except Exception as e:
-        print(f"Error publishing message: {e}")
+        logger.error("Error publishing message: %s", e)
 
 
 def publish_request(client, schedule):
@@ -61,7 +57,7 @@ def publish_request(client, schedule):
 def on_message(client, userdata, msg):
     # print(f"Received message: {msg.payload.decode()} on topic {msg.topic}")
     try:
-        print(f"Received message: {msg.payload.decode()} on topic {msg.topic}")
+        logger.info("Received message: %s on topic %s", msg.payload.decode(), msg.topic)
         if msg.topic == TOPIC_SUB_SCHEDULE_CREATE:
             payload = json.loads(msg.payload.decode())
 
@@ -78,18 +74,20 @@ def on_message(client, userdata, msg):
                 command=payload["command"],
             )
 
+            logger.info("Schedule created/updated: id=%s start_time=%s command=%s", schedule.id, schedule.start_time, schedule.command)
             add_replace_schedule(schedule)
 
         elif msg.topic == TOPIC_SUB_SCHEDULE_DELETE:
             payload = json.loads(msg.payload.decode())
             schedule_id = payload["id"]
+            logger.info("Schedule deleted: id=%s", schedule_id)
             remove_schedule(schedule_id)
 
         elif msg.topic == TOPIC_SUB_HEALTH_CHECK_REQUEST:
             health_check_response(client)
 
     except json.JSONDecodeError:
-        print(f"Received non-JSON message: {msg.payload.decode()} on topic {msg.topic}")
+        logger.warning("Received non-JSON message: %s on topic %s", msg.payload.decode(), msg.topic)
 
 
 def create_mqtt_client():
@@ -103,7 +101,7 @@ def create_mqtt_client():
 def run_mqtt():
     try:
         client = create_mqtt_client()
-        print(f"Connecting to broker {config.MQTT_BROKER} on port {config.MQTT_PORT}")
+        logger.info("Connecting to broker %s on port %s", config.MQTT_BROKER, config.MQTT_PORT)
         client.connect(config.MQTT_BROKER, config.MQTT_PORT, 60)
         client.loop_start()
         return client
