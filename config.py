@@ -21,9 +21,7 @@ class Config:
     MQTT_BROKER = os.getenv("MQTT_BROKER")
     MQTT_PORT = int(os.getenv("MQTT_PORT"))
     DEVICE_NAME = os.getenv("DEVICE_NAME")
-    API_URL = os.getenv(
-        "API_URL", "http://192.168.1.14:5001"
-    )  # Default to localhost if not set
+    API_URL = os.getenv("API_URL")
 
 
 config = Config()

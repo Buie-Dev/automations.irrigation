@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 import uuid
 import paho.mqtt.client as mqtt
 
@@ -13,13 +14,16 @@ TOPIC_PUB_IRRIGATION_REQUEST = "irrigation/request"
 TOPIC_SUB_HEALTH_CHECK_REQUEST = "healthcheck/request"
 TOPIC_SUB_SCHEDULE_CREATE = "irrigation/schedule/create"
 TOPIC_SUB_SCHEDULE_DELETE = "irrigation/schedule/delete"
+TOPIC_SUB_SCHEDULE_STATUS_REQUEST = "irrigation/schedule/status/request"
 
 TOPIC_PUB_HEALTH_CHECK_RESPONSE = "healthcheck/response"  # Topic to publish to
+TOPIC_PUB_SCHEDULE_STATUS_RESPONSE = "irrigation/schedule/status/response"
 
 sub_topics = [
     TOPIC_SUB_HEALTH_CHECK_REQUEST,
     TOPIC_SUB_SCHEDULE_CREATE,
     TOPIC_SUB_SCHEDULE_DELETE,
+    TOPIC_SUB_SCHEDULE_STATUS_REQUEST,
 ]
 
 logger.info("CONFIG.MQTT %s %s %s %s", config.MQTT_BROKER, config.MQTT_PASSWORD, config.MQTT_PORT, config.MQTT_USERNAME)
@@ -86,6 +90,27 @@ def on_message(client, userdata, msg):
         elif msg.topic == TOPIC_SUB_HEALTH_CHECK_REQUEST:
             health_check_response(client)
 
+        elif msg.topic == TOPIC_SUB_SCHEDULE_STATUS_REQUEST:
+            all_schedules = SCHEDULES + COMPLETED_SCHEDULES
+            payload = {
+                "schedules": [
+                    {
+                        "id": s.id,
+                        "monday": s.monday,
+                        "tuesday": s.tuesday,
+                        "wednesday": s.wednesday,
+                        "thursday": s.thursday,
+                        "friday": s.friday,
+                        "saturday": s.saturday,
+                        "sunday": s.sunday,
+                        "start_time": s.start_time,
+                        "command": s.command,
+                    }
+                    for s in all_schedules
+                ]
+            }
+            publish_message(client, TOPIC_PUB_SCHEDULE_STATUS_RESPONSE, payload)
+
     except json.JSONDecodeError:
         logger.warning("Received non-JSON message: %s on topic %s", msg.payload.decode(), msg.topic)
 
@@ -99,12 +124,14 @@ def create_mqtt_client():
 
 
 def run_mqtt():
-    try:
-        client = create_mqtt_client()
-        logger.info("Connecting to broker %s on port %s", config.MQTT_BROKER, config.MQTT_PORT)
-        client.connect(config.MQTT_BROKER, config.MQTT_PORT, 60)
-        client.loop_start()
-        return client
-
-    finally:
-        pass
+    client = create_mqtt_client()
+    while True:
+        try:
+            logger.info("Connecting to broker %s:%s...", config.MQTT_BROKER, config.MQTT_PORT)
+            client.connect(config.MQTT_BROKER, config.MQTT_PORT, 60)
+            break
+        except Exception as e:
+            logger.error("MQTT connect failed: %s — retrying in 5s", e)
+            time.sleep(5)
+    client.loop_start()
+    return client

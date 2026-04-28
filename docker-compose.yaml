@@ -1,10 +1,10 @@
 
 
 services:
-  irrigation-controller:
+  irrigation-automation:
     network_mode: "host"
     build: .
-    container_name: irrigation-controller
+    container_name: irrigation-automation
     environment:
       CONFIG_FILE: /run/secrets/config.json
     volumes:
