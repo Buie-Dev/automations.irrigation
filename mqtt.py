@@ -1,7 +1,6 @@
 import json
 import logging
 import time
-import uuid
 import paho.mqtt.client as mqtt
 
 from config import config
@@ -78,7 +77,10 @@ def on_message(client, userdata, msg):
                 command=payload["command"],
             )
 
-            logger.info("Schedule created/updated: id=%s start_time=%s command=%s", schedule.id, schedule.start_time, schedule.command)
+            logger.info(
+                "Schedule created/updated: id=%s start_time=%s command=%s",
+                schedule.id, schedule.start_time, schedule.command,
+            )
             add_replace_schedule(schedule)
 
         elif msg.topic == TOPIC_SUB_SCHEDULE_DELETE:
