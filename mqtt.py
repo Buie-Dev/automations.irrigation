@@ -25,7 +25,7 @@ sub_topics = [
     TOPIC_SUB_SCHEDULE_STATUS_REQUEST,
 ]
 
-logger.info("CONFIG.MQTT %s %s %s %s", config.MQTT_BROKER, config.MQTT_PASSWORD, config.MQTT_PORT, config.MQTT_USERNAME)
+logger.info("CONFIG.MQTT %s %s %s", config.MQTT_BROKER, config.MQTT_PORT, config.MQTT_USERNAME)
 
 
 # Callback when the client connects to the broker
